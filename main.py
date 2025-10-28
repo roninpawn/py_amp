@@ -1,11 +1,11 @@
 from guiABLE import *
 
 app = Window(540, 240, 450, 200, title="Py_Amp")
-app.setSkin(SingleSkin("GUI/bg_540x240.png"))
+app.setSkin(Skin("GUI/bg_540x240.png"))
 
 # Fonts
 digital_font = FontPack("DS-Digital", 36, "normal", "#22ee22", "#000000")
-ui_font = FontPack("Nirmala UI", color="#22ee22", drop_color="#000000")
+ui_font = FontPack("Nirmala UI", color="#22ee22", drop_color="#000000", text_pos=(4,0))
 
 # Top
 top_bar = Hover(app, Skin("GUI/top_bar_unfocused_479x14.png", "GUI/top_bar_focused_479x14.png"))
@@ -13,18 +13,17 @@ min_but = Button(app, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.mi
 exit_but = Button(app, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit)
 
 # Mid
-display = Poster(app, SingleSkin("GUI/display_187x99.png"))
+display = Image(app, Skin("GUI/display_187x99.png"))
 timer_text = Label(display, None, "00:04", digital_font)
-title_bar = Label(app, SingleSkin("GUI/title_bar_303x28.png"), "4. Track 3 (5:04)", ui_font, font_size=14, text_pos=(6,0))
-kbps_box = Label(app, SingleSkin("GUI/kpbs_41x23.png"), "192", ui_font, drop_color=None, text_pos=(36,0),anchor="ne")
-kbps = Label(app, None, "kbps", ui_font, weight="bold", color="#cbdae7", drop_color=None, width=40, height=23)
-khz_box = Label(app, SingleSkin("GUI/khz_33x23.png"), "44", ui_font, drop_color=None, text_pos=(28,0), anchor="ne")
+title_bar = Label(app, Skin("GUI/title_bar_303x28.png"), "4. Track 3 (5:04)", ui_font, font_size=14, text_pos=(6,0))
+kbps_box = Label(app, Skin("GUI/kpbs_41x23.png"), "192", ui_font, drop_color=None, anchor="ne")
+kbps = Label(app, None, "kbps", ui_font, weight="bold", color="#cbdae7", width=40, height=23)
+khz_box = Label(app, Skin("GUI/khz_33x23.png"), "44", ui_font, drop_color=None, anchor="ne")
 khz = Label(app, None, "khz", ui_font, weight="bold", color="#cbdae7", width=30, height=23)
-volume_bar = Poster(app, SingleSkin("GUI/volume_trough_129x22.png"))
-volume_handle = Drag(volume_bar, SingleSkin("GUI/volume_handle_24x22.png"))
+volume_slider = Slider(app, Skin("GUI/volume_trough_129x22.png"), Skin("GUI/volume_handle_24x22.png"), start_percent=1)
 channels = Button(app, Skin.fromSpriteSheet("GUI/mono_stereo_96x20.png", 96))
-progress_bar = Poster(app, SingleSkin("GUI/progress_trough_487x20.png"))
-progress_handle = Drag(progress_bar, SingleSkin("GUI/progress_handle_58x20.png"))
+progress_bar = Image(app, Skin("GUI/progress_trough_487x20.png"))
+progress_handle = Drag(progress_bar, Skin("GUI/progress_handle_58x20.png"))
 
 # Buttons
 prev_but = Button(app, Skin.fromSpriteSheet("GUI/prev_44x36.png", 44))
@@ -48,11 +47,10 @@ display.place(x=24, y=42)
 timer_text.place(x=72, y=0)
 title_bar.place(x=220, y=42)
 kbps_box.place(x=220, y=86)
-kbps.place(x=266, y=86)
+kbps.place(x=260, y=86)
 khz_box.place(x=310, y=86)
-khz.place(x=348, y=86)
-volume_bar.place(x=222, y=122)
-volume_handle.place(x=105, y=0)
+khz.place(x=343, y=86)
+volume_slider.place(x=222, y=122)
 channels.place(x=424, y=90)
 progress_bar.place(x=28, y=152)
 progress_handle.place(x=0, y=0)
