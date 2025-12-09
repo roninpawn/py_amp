@@ -104,6 +104,9 @@ class ActiveTrack():
         step_time = int(1000 / steps_per_sec)
         delta = (end - start) / total_steps
 
+        # Quadratic easing method.
+        def _ease_out(t: float) -> float: return 1 - (1 - t)**2
+
         # A packable, recallable function that can be passed into Tk's .after() method.
         def _step(i=0, cur=start):
             if i >= total_steps:
@@ -113,7 +116,9 @@ class ActiveTrack():
                 self._fade_job = None
                 return
 
-            cur += delta
+            t = (i + 1) / total_steps          # Normalized progress
+            cur = start + (end - start) * _ease_out(t)
+
             self.setVolume(cur)
             setVolume(cur, True)
             self._fade_job = self._scheduler.after(step_time, lambda: _step(i+1, cur))
@@ -161,7 +166,7 @@ class ActiveTrack():
         self.artist = self._meta.artist or ""
         self.album = self._meta.album or ""
         self.album_track = self._meta.track or ""
-        print(self.kbps, self.khz, self.file_size, self.title, self.artist, self.album, self.album_track)
+        # print(self.kbps, self.khz, self.file_size, self.title, self.artist, self.album, self.album_track)
 
 
 def setProgress(): track.setProgress(progress_bar.getPercent())
