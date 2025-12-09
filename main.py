@@ -5,12 +5,17 @@ from tkinter.filedialog import askopenfilename
 import datetime
 
 class ActiveTrack():
-    def __init__(self, path:str = "", volume:float=1.0):
+    def __init__(self, path:str = "", volume:float=1.0, tk_after=None):
         self._path = ""
         self._track = Playback()
         self._duration, self._progress = 0.0, 0.0
         self._volume = volume
         self._loop = False
+
+        # Enable volume fading support through TK. (no extra multithreading necessary)
+        self._scheduler = tk_after   # Any TK reference from the UI that supports .after()
+        self._fade_job = None
+        self._fading = False
 
         self._meta = None
         self.kbps, self.khz, self.file_size, self.album_track, self.channels = 0.0, 0, 0, 0, 0
@@ -35,8 +40,7 @@ class ActiveTrack():
         if self.artist: out += f" - {self.artist}"
         if self.album: out += f" - {self.album}"
         if self.album_track: out += f" [Track #{self.album_track}]"
-        str(self.title + self.artist + self.album + str(self.album_track)).strip()
-        return out
+        return out.strip()
 
     def load(self, path:str):
         if path:
@@ -80,6 +84,41 @@ class ActiveTrack():
     def setVolume(self, volume:float):
         self._volume = volume
         if self.isLoaded(): self._track.set_volume(volume)
+
+    def fadeVolume(self, end:float, duration:float, start:float = None, steps_per_sec:int = 30):
+        if self._scheduler is None:     # Must have a scheduler (Tk root or widget)
+            raise RuntimeError("ActiveTrack.fadeVolume() requires a Tk scheduler with .after()")
+
+        # Cancel any existing fade
+        if self._fade_job is not None:
+            try: self._scheduler.after_cancel(self._fade_job)
+            except Exception: pass
+            self._fade_job = None
+
+        self._fading = True
+
+        # Collect/define the needed values for interpolation.
+        start = max(0.0, start if start is not None else float(self._volume))
+        end = max(0.0, float(end))
+        total_steps = max(1, int(duration * steps_per_sec))
+        step_time = int(1000 / steps_per_sec)
+        delta = (end - start) / total_steps
+
+        # A packable, recallable function that can be passed into Tk's .after() method.
+        def _step(i=0, cur=start):
+            if i >= total_steps:
+                self.setVolume(end)
+                setVolume(cur, False)
+                self._fading = False
+                self._fade_job = None
+                return
+
+            cur += delta
+            self.setVolume(cur)
+            setVolume(cur, True)
+            self._fade_job = self._scheduler.after(step_time, lambda: _step(i+1, cur))
+
+        _step()
 
     def setProgress(self, percent:float) -> float:
         self._progress = percent
@@ -163,6 +202,13 @@ def getTime(secs:float):
     if out.seconds < 3600: return str(out)[-5:]
     else: return str(out)[-7:]
 
+def setVolume(volume:float, lock:bool = False):
+    if lock:
+        volume_slider.disable()
+    else: volume_slider.enable()
+
+    volume_slider.setPercent(volume)
+
 def setStatics():
     track_lbl.setText(track.info)
     kbps = str(round(track.kbps))
@@ -171,12 +217,12 @@ def setStatics():
     channels.setState(track.channels if track.channels < 3 else 2)
     display_duration.setText(getTime(track.duration))
 
-
-# Audio Init
-track = ActiveTrack()
-
+# Spawn Window
 app = Window(540, 240, 450, 200, title="Py_Amp")
 app.setSkin(Skin("GUI/bg_540x240.png"))
+
+# Audio Engine Init
+track = ActiveTrack(tk_after=app)
 
 # Fonts
 digital_font = FontPack("DS-Digital", 36, "normal", "#22ee22", "#000000", anchor="ne")
@@ -193,9 +239,9 @@ display_progress = Label(display, None, "00:00", digital_font, width=110).place(
 display_duration = Label(display, None, "", digital_font, font_size=14, width=60).place(120, 42)
 track_lbl = Label(app, "GUI/title_bar_303x28.png", "No track loaded.", ui_font, text_pos=(6,1)).place(220, 42)
 # Mid-mid
-kbps_box = Label(app, "GUI/kpbs_41x23.png", "192", ui_font, drop_color=None, anchor="ne").place(220, 86)
+kbps_box = Label(app, "GUI/kpbs_41x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(220, 86)
 kbps = Label(app, None, "kbps", ui_font, weight="bold", color="#cbdae7").place(260, 86)
-khz_box = Label(app, "GUI/khz_33x23.png", "44", ui_font, drop_color=None, anchor="ne").place(310, 86)
+khz_box = Label(app, "GUI/khz_33x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(310, 86)
 khz = Label(app, None, "khz", ui_font, weight="bold", color="#cbdae7").place(343, 86)
 
 # Low-mid
@@ -206,6 +252,15 @@ channels = Image(app, Skin.fromSpriteSheet("GUI/mono_stereo_96x20.png", 96)).pla
 progress_bar = Slider(app, "GUI/progress_trough_487x20.png", "GUI/progress_handle_58x20.png",
                                     updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(28, 152)
 progress_bar.disable()
+
+# Fade Buttons
+fade_buttons = Collection(app).place(438, 119)
+fi = UImage("GUI/fade_in_22x24.png").getSprites(22)
+fo = UImage("GUI/fade_out_22x24.png").getSprites(22)
+fu = UImage("GUI/fade_under_22x24.png").getSprites(22)
+fade_in = Button(fade_buttons, (fi[0],fi[0],fi[1]), lambda:track.fadeVolume(1.0, 1.25)).place(0, 0)
+fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 5.0)).place(22, 0)
+fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.2, 1.25)).place(44, 0)
 
 # Buttons
 track_buttons = Collection(app).place(28, 188)
