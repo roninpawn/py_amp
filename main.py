@@ -2,6 +2,7 @@ from guiABLE import *
 from just_playback import Playback
 from tinytag import TinyTag
 from tkinter.filedialog import askopenfilename
+from time import time
 import datetime
 
 class ActiveTrack():
@@ -85,7 +86,7 @@ class ActiveTrack():
         self._volume = volume
         if self.isLoaded(): self._track.set_volume(volume)
 
-    def fadeVolume(self, end:float, duration:float, start:float = None, steps_per_sec:int = 30):
+    def fadeVolume(self, end:float, duration:float, start:float = None, steps_per_sec:int = 32):
         if self._scheduler is None:     # Must have a scheduler (Tk root or widget)
             raise RuntimeError("ActiveTrack.fadeVolume() requires a Tk scheduler with .after()")
 
@@ -169,6 +170,55 @@ class ActiveTrack():
         # print(self.kbps, self.khz, self.file_size, self.title, self.artist, self.album, self.album_track)
 
 
+class Marquee(Label):
+    def animate(self, pixel_delta:int = 10, fps:int = 32, delay_ms:int = 3000):
+        text_bbox = self.bbox(self._img_text)
+        req_width = text_bbox[0] + text_bbox[2]
+        self._last_offset_x = 0
+
+        # End any animation that is already in progress.
+        try:
+            self.after_cancel(self._animate[5])
+        except: pass
+
+        # Only animate if the text extends beyond the given area.
+        if self.width < req_width:
+            origin = 0
+            destination = self.width - req_width
+            duration = abs(origin - destination) / pixel_delta
+            animation_id = self.after_idle(self._animationStep)
+
+            self._animate = [time() - duration, destination, 1.0, origin, duration, animation_id]
+            self._framerate = round(1000 / fps)
+            self._reverse_delay = delay_ms
+
+    def _animationStep(self):
+        self._animate[2] = min(1.0, (time() - self._animate[0]) / self._animate[4])
+
+        if self._animate[2] < 1.0:
+            # Interpolate new offset.
+            offset_x = round(self._animate[1] + (self._animate[3] - self._animate[1]) * self._animate[2])
+
+            # Only redraw text if the pixel position has changed.
+            if offset_x != self._last_offset_x:
+                # Remove old text.
+                if self._img_text: self.delete(self._img_text)
+                if self._img_text_shadow: self.delete(self._img_text_shadow)
+                self._img_text, self._img_text_shadow = None, None
+                # Create text in new position.
+                self.drawText(offset_x)
+
+            self._last_offset_x = offset_x
+            self._animate[5] = self.after(self._framerate, self._animationStep)    # Schedule next step.
+        else:
+            # Flip origin with destination and set a new start time.
+            new_origin = self._animate[3]
+            self._animate[3] = self._animate[1]
+            self._animate[1] = new_origin
+            self._animate[0] = time() + (self._reverse_delay / 1000)
+            self._animate[5] = self.after(self._reverse_delay, self._animationStep)
+
+
 def setProgress(): track.setProgress(progress_bar.getPercent())
 
 # Weird little bodge to prevent dozens/hundreds of progress threads from being made.
@@ -221,6 +271,7 @@ def setStatics():
     khz_box.setText(str(round(track.khz * .001)))
     channels.setState(track.channels if track.channels < 3 else 2)
     display_duration.setText(getTime(track.duration))
+    track_lbl.animate()
 
 # Spawn Window
 app = Window(540, 240, 450, 200, title="Py_Amp")
@@ -242,7 +293,9 @@ exi_b = Button(app, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).pl
 display = Image(app, "GUI/display_187x99.png").place(24, 42)
 display_progress = Label(display, None, "00:00", digital_font, width=110).place(72, 0)
 display_duration = Label(display, None, "", digital_font, font_size=14, width=60).place(120, 42)
-track_lbl = Label(app, "GUI/title_bar_303x28.png", "No track loaded.", ui_font, text_pos=(6,1)).place(220, 42)
+track_bg = Image(app, "GUI/title_bar_303x28.png").place(220, 42)
+track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,1), width=299).place(2, 0)
+
 # Mid-mid
 kbps_box = Label(app, "GUI/kpbs_41x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(220, 86)
 kbps = Label(app, None, "kbps", ui_font, weight="bold", color="#cbdae7").place(260, 86)
