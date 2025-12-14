@@ -171,14 +171,14 @@ class ActiveTrack():
 
 
 class Marquee(Label):
-    def animate(self, pixel_delta:int = 10, fps:int = 32, delay_ms:int = 3000):
+    def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
         text_bbox = self.bbox(self._img_text)
         req_width = text_bbox[0] + text_bbox[2]
         self._last_offset_x = 0
 
         # End any animation that is already in progress.
         try:
-            self.after_cancel(self._animate[5])
+            self.after_cancel(self._animate[7])
         except: pass
 
         # Only animate if the text extends beyond the given area.
@@ -187,10 +187,10 @@ class Marquee(Label):
             destination = self.width - req_width
             duration = abs(origin - destination) / pixel_delta
             animation_id = self.after_idle(self._animationStep)
+            framerate = round(1000 / fps)
 
-            self._animate = [time() - duration, destination, 1.0, origin, duration, animation_id]
-            self._framerate = round(1000 / fps)
-            self._reverse_delay = delay_ms
+            # Initiate on a forced inverse-completion, triggering a delay and origin/destination flip.
+            self._animate = [time() - duration, destination, 1.0, origin, duration, framerate, delay_ms, animation_id]
 
     def _animationStep(self):
         self._animate[2] = min(1.0, (time() - self._animate[0]) / self._animate[4])
@@ -207,16 +207,16 @@ class Marquee(Label):
                 self._img_text, self._img_text_shadow = None, None
                 # Create text in new position.
                 self.drawText(offset_x)
+                self._last_offset_x = offset_x
 
-            self._last_offset_x = offset_x
-            self._animate[5] = self.after(self._framerate, self._animationStep)    # Schedule next step.
+            self._animate[7] = self.after(self._animate[5], self._animationStep)    # Schedule next step.
         else:
             # Flip origin with destination and set a new start time.
             new_origin = self._animate[3]
             self._animate[3] = self._animate[1]
             self._animate[1] = new_origin
-            self._animate[0] = time() + (self._reverse_delay / 1000)
-            self._animate[5] = self.after(self._reverse_delay, self._animationStep)
+            self._animate[0] = time() + (self._animate[6] / 1000)
+            self._animate[7] = self.after(self._animate[6], self._animationStep)
 
 
 def setProgress(): track.setProgress(progress_bar.getPercent())
