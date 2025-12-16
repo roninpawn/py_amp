@@ -1,182 +1,8 @@
-from guiABLE import *
-from just_playback import Playback
-from tinytag import TinyTag
 from tkinter.filedialog import askopenfilename
 from time import time
-import datetime
 
-class ActiveTrack():
-    def __init__(self, path:str = "", volume:float=1.0, tk_after=None):
-        self._path = ""
-        self._track = Playback()
-        self._duration, self._progress = 0.0, 0.0
-        self._volume = volume
-        self._loop = False
-
-        # Enable volume fading support through TK. (no extra multithreading necessary)
-        self._scheduler = tk_after   # Any TK reference from the UI that supports .after()
-        self._fade_job = None
-        self._fading = False
-
-        self._meta = None
-        self.kbps, self.khz, self.file_size, self.album_track, self.channels = 0.0, 0, 0, 0, 0
-        self.title, self.artist, self.album = "", "", ""
-        self._status = "Unloaded"
-
-        self.load(path)
-
-    def status(self) -> str: return self._status
-    def isLoaded(self) -> bool: return bool(self._path)
-    def isPlaying(self) -> bool: return self._track.playing
-    def isPaused(self) -> bool: return self._track.paused
-    def loops(self) -> bool: return self._loop
-
-    @property
-    def duration(self): return self._duration
-    @property
-    def volume(self): return self._volume
-    @property
-    def meta(self): return self._meta
-    @property
-    def info(self):
-        out = self.title
-        if self.artist: out += f" - {self.artist}"
-        if self.album: out += f" - {self.album}"
-        if self.album_track: out += f" [Track #{self.album_track}]"
-        return out.strip()
-
-    def load(self, path:str):
-        if path:
-            self._reset()
-            try:
-                self._track.load_file(path)
-                self._duration = self._track.duration
-                self._populateMeta(path)
-                setStatics()
-
-                self._path = path
-                self.play()
-            except:
-                self._path = ""
-                setState()
-        return self.isLoaded()
-
-    def play(self):
-        if self.isLoaded():
-            if not self._track.paused:
-                if track.isPlaying(): self._progress = 0.0
-                self._track.play()
-                self._track.seek(self._progress * self._duration)
-            else: self._track.resume()
-            self._status = "Playing"
-
-            self._track.set_volume(self._volume)
-            self._track.loop_at_end(self._loop)
-            updateProgress()
-            setState()
-
-    def pause(self):
-        if self.isLoaded() and self._status != "Stopped":
-            if not self._track.paused:
-                self._track.pause()
-                self._status = "Paused"
-                setState()
-            else: self.play()
-
-    def stop(self):
-        if self.isLoaded() and self._track.active:
-            self._track.stop()
-            self._status = "Stopped"
-        self._progress = 0.0
-        updateProgress(True)
-        setState()
-
-    def setVolume(self, volume:float):
-        self._volume = volume
-        if self.isLoaded(): self._track.set_volume(volume)
-
-    def fadeVolume(self, end:float, duration:float, start:float = None, steps_per_sec:int = 32):
-        if self._scheduler is None:     # Must have a scheduler (Tk root or widget)
-            raise RuntimeError("ActiveTrack.fadeVolume() requires a Tk scheduler with .after()")
-
-        # Cancel any existing fade
-        if self._fade_job is not None:
-            try: self._scheduler.after_cancel(self._fade_job)
-            except Exception: pass
-            self._fade_job = None
-
-        self._fading = True
-
-        # Collect/define the needed values for interpolation.
-        start = max(0.0, start if start is not None else float(self._volume))
-        end = max(0.0, float(end))
-        total_steps = max(1, int(duration * steps_per_sec))
-        step_time = int(1000 / steps_per_sec)
-        delta = (end - start) / total_steps
-
-        # Quadratic easing method.
-        def _ease_out(t: float) -> float: return 1 - (1 - t)**2
-
-        # A packable, recallable function that can be passed into Tk's .after() method.
-        def _step(i=0, cur=start):
-            if i >= total_steps:
-                self.setVolume(end)
-                setVolume(cur, False)
-                self._fading = False
-                self._fade_job = None
-                return
-
-            t = (i + 1) / total_steps          # Normalized progress
-            cur = start + (end - start) * _ease_out(t)
-
-            self.setVolume(cur)
-            setVolume(cur, True)
-            self._fade_job = self._scheduler.after(step_time, lambda: _step(i+1, cur))
-
-        _step()
-
-    def setProgress(self, percent:float) -> float:
-        self._progress = percent
-        secs = self.getSeconds()
-        if self.isLoaded():
-            self._track.seek(self._progress * self._duration)
-            return secs
-        return 0.0
-
-    def getSeconds(self) -> float:
-        if self.isLoaded(): return self._track.curr_pos
-        return 0.0
-
-    def getPercent(self):
-        if self.isLoaded(): return self._track.curr_pos / self._duration
-
-    def setLoop(self, will_loop:bool):
-        self._loop = will_loop      # loop_at_end() will restart playback if at end and stopped so this is needed.
-        if not will_loop or self.isPlaying(): self._track.loop_at_end(will_loop)
-
-    def _reset(self):
-        self._track.stop()
-
-        self._path = ""
-        self._duration, self._progress = 0.0, 0.0
-
-        self._meta = None
-        self.kbps, self.khz, self.file_size, self.album_trac, self.channels = 0.0, 0, 0, 0, 0
-        self.title, self.artist, self.album = "", "", ""
-
-    def _populateMeta(self, path:str):
-        self._meta = TinyTag.get(path)
-        # Audio attributes
-        self.kbps = self._meta.bitrate
-        self.khz = self._meta.samplerate
-        self.file_size = self._meta.filesize
-        self.channels = self._meta.channels
-        # Tag metadata
-        self.title = self._meta.title or self._meta.filename.split("/")[-1].split("\\")[-1]     # Split for Win & Linux
-        self.artist = self._meta.artist or ""
-        self.album = self._meta.album or ""
-        self.album_track = self._meta.track or ""
-        # print(self.kbps, self.khz, self.file_size, self.title, self.artist, self.album, self.album_track)
+from guiABLE import *
+from active_track import ActiveTrack
 
 
 class Marquee(Label):
@@ -228,74 +54,91 @@ class Marquee(Label):
             self._animate[7] = self.after(self._animate[6], self._animationStep)
 
 
-def setProgress(): track.setProgress(progress_bar.getPercent())
+class GuiManager():
+    def __init__(self):
+        self._progress_locked = False
+        self._ga_closed_since = 0.0
 
-# Weird little bodge to prevent dozens/hundreds of progress threads from being made.
-locked = False
-def unlockProgress():
-    global locked
-    locked = False
-    updateProgress()
+    @staticmethod
+    def setVolume(volume:float, lock:bool = False):
+        if lock:
+            volume_slider.disable()
+        else: volume_slider.enable()
 
-def updateProgress(bypass_lock=False):
-    global locked
+        volume_slider.setPercent(volume)
 
-    # Set the time display
-    dragging = progress_bar.isHeld()
-    if dragging:
-        setTime(getTime(progress_bar.getPercent() * track.duration))
-    elif not track.isPaused():
-        setTime(getTime(track.getSeconds()))
+    @staticmethod
+    def setState():
+        if track.status() == "Playing": display_state.changeImage(1)    # Change state-icon here
+        elif track.status() == "Stopped": display_state.changeImage(2)
+        elif track.status() == "Paused": display_state.changeImage(3)
+        elif track.status() == "Unloaded": display_state.changeImage(0)
 
-    # Update the progress bar
-    if not locked or bypass_lock:
-        if not track.isPaused():
-            if track.isPlaying():
-                if not progress_bar.enabled: progress_bar.enable()
-                if not progress_bar.isHeld(): progress_bar.setPercent(track.getPercent())
-                progress_bar.after(500, unlockProgress)
-                locked = True
-            elif not dragging:
-                track.setProgress(0.0)
-                progress_bar.setPercent(0.0)
+    def setStatics(self):
+        track_lbl.setText(track.info)
+        kbps = str(round(track.kbps))
+        kbps_box.setText(kbps[:len(kbps)-3] + "k" if kbps and len(kbps) > 3 else kbps)
+        khz_box.setText(str(round(track.khz * .001)))
+        channels.setState(track.channels if track.channels < 3 else 2)
+        self.setDuration(self.getTime(track.duration))
+        track_lbl.animate()
 
-def setTime(time_str:str): display_progress.setText(time_str.strip())
+    # Weird little bodge to prevent dozens/hundreds of progress threads from being made.
+    def unlockProgress(self):
+        self._progress_locked = False
+        self.updateProgress()
 
-def getTime(secs:float):
-    out = datetime.timedelta(seconds=round(secs))
-    if out.seconds < 3600: return str(out)[-5:]
-    else: return str(out)[-7:]
+    def updateProgress(self, bypass_lock=False):
+        # Set the time display
+        dragging = progress_bar.isHeld()
+        if dragging:
+            self.setTime(self.getTime(progress_bar.getPercent() * track.duration))
+        elif not track.isPaused():
+            self.setTime(self.getTime(track.getSeconds()))
 
-def setVolume(volume:float, lock:bool = False):
-    if lock:
-        volume_slider.disable()
-    else: volume_slider.enable()
+        # Update the progress bar
+        if not self._progress_locked or bypass_lock:
+            if not track.isPaused():
+                if track.isPlaying():
+                    if not progress_bar.enabled: progress_bar.enable()
+                    if not progress_bar.isHeld(): progress_bar.setPercent(track.getPercent())
+                    progress_bar.after(500, self.unlockProgress)
+                    self._progress_locked = True
+                elif not dragging:
+                    track.setProgress(0.0)
+                    progress_bar.setPercent(0.0)
+    @staticmethod
+    def getTime(secs:float) -> str: return f"{int(secs // 60):02d}:{round(secs % 60):02d}"
 
-    volume_slider.setPercent(volume)
+    @staticmethod
+    def setTime(min_sec_str:str):
+        mins, secs = min_sec_str.strip().split(":")
+        m_index = len(mins) - 1
+        progress_min100.changeImage(int(mins[m_index-2])) if m_index > 1 else progress_min100.changeImage(10)
+        progress_min10.changeImage(int(mins[m_index-1]))
+        progress_min1.changeImage(int(mins[m_index]))
+        progress_sec10.changeImage(int(secs[0]))
+        progress_sec1.changeImage(int(secs[1]))
 
-def setState():
-    if track.status() == "Playing": display_state.changeImage(1)    # Change state-icon here
-    elif track.status() == "Stopped": display_state.changeImage(2)
-    elif track.status() == "Paused": display_state.changeImage(3)
-    elif track.status() == "Unloaded": display_state.changeImage(0)
+    @staticmethod
+    def setDuration(min_sec_str:str):
+        mins, secs = min_sec_str.strip().split(":")
+        m_index = len(mins) - 1
+        duration_min1000.changeImage(int(mins[m_index-3])) if m_index > 2 else duration_min1000.changeImage(10)
+        duration_min100.changeImage(int(mins[m_index-2])) if m_index > 1 else duration_min100.changeImage(10)
+        duration_min10.changeImage(int(mins[m_index-1]))
+        duration_min1.changeImage(int(mins[m_index]))
+        duration_sec10.changeImage(int(secs[0]))
+        duration_sec1.changeImage(int(secs[1]))
 
-def setStatics():
-    track_lbl.setText(track.info)
-    kbps = str(round(track.kbps))
-    kbps_box.setText(kbps[:len(kbps)-3] + "k" if kbps and len(kbps) > 3 else kbps)
-    khz_box.setText(str(round(track.khz * .001)))
-    channels.setState(track.channels if track.channels < 3 else 2)
-    display_duration.setText(getTime(track.duration))
-    track_lbl.animate()
+    def showGAWin(self):
+        if ga_win.visible() == False and self._ga_closed_since + 0.1 < time():
+            ga_win.visible(True)
+            ga_bg.focus_set()
 
-def showGAWin():
-    if ga_win.visible() == False and ga_closed + 0.1 < time():
-        ga_win.visible(True)
-        ga_bg.focus_set()
-def hideGAWin(event=None):
-    global ga_closed
-    ga_closed = time()
-    ga_win.visible(False)
+    def hideGAWin(self, event=None):
+        self._ga_closed_since = time()
+        ga_win.visible(False)
 
 
 # Spawn Window
@@ -303,11 +146,11 @@ app_size, app_location = (540, 240), (450, 200)
 app = Window(*app_size, *app_location, title="Py_Amp")
 app.setSkin(Skin("GUI/bg_540x240.png"))
 
-# Audio Engine Init
-track = ActiveTrack(tk_after=app)
+# Initialize Audio Engine
+gui = GuiManager()
+track = ActiveTrack(gui_manager=gui, tk_after=app)
 
 # Fonts
-digital_font = FontPack("DS-Digital", 36, "normal", "#22ee22", "#000000", anchor="ne")
 ui_font = FontPack("Nirmala UI", 12, "normal", "#22ee22", "#000000", (4,0))
 
 # Top
@@ -316,18 +159,36 @@ min_b = Button(app, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.mini
 exi_b = Button(app, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).place(518, 10)
 
 # Top-Mid
+display = Image(app, "GUI/display_187x99.png",).place(24, 39)
+
 states = UImage("GUI/playback_state_icons_22x22.png").getSprites(22)
 states.insert(0, UImage())
+display_state = Image(display, states).place(16, 11)
 
-display = Image(app, "GUI/display_187x99.png",).place(24, 42)
-display_state = Image(display, states).place(16, 12)
-display_progress = Label(display, None, "00:00", digital_font, width=110).place(72, 0)
-display_duration = Label(display, None, "", digital_font, font_size=14, width=60).place(120, 42)
+digit_skin = Skin(*UImage("GUI/segmented_digits_20x32.png").getSprites(20), UImage())
+
+display_progress = Collection(display).place(54, 6)
+progress_min100 = Image(display_progress, digit_skin, 10).place(0, 0)
+progress_min10 = Image(display_progress, digit_skin).place(24, 0)
+progress_min1 = Image(display_progress, digit_skin).place(48, 0)
+progress_sec10 = Image(display_progress, digit_skin).place(82, 0)
+progress_sec1 = Image(display_progress, digit_skin).place(106, 0)
+
+small_digit_skin = Skin(*UImage("GUI/segmented_digits_8x13.png").getSprites(8), UImage())
+
+display_duration = Collection(display).place(121, 43)
+duration_min1000 = Image(display_duration, small_digit_skin, 10).place(0, 0)
+duration_min100 = Image(display_duration, small_digit_skin, 10).place(9, 0)
+duration_min10 = Image(display_duration, small_digit_skin).place(18, 0)
+duration_min1 = Image(display_duration, small_digit_skin).place(27, 0)
+duration_sec10 = Image(display_duration, small_digit_skin).place(41, 0)
+duration_sec1 = Image(display_duration, small_digit_skin).place(50, 0)
+
 track_bg = Image(app, "GUI/title_bar_303x28.png").place(220, 42)
 track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,1), width=299).place(2, 0)
 
 # Mid-mid
-kbps_box = Label(app, "GUI/kpbs_41x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(220, 86)
+kbps_box = Label(app, "GUI/kbps_41x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(220, 86)
 kbps = Label(app, None, "kbps", ui_font, weight="bold", color="#cbdae7").place(260, 86)
 khz_box = Label(app, "GUI/khz_33x23.png", "-- ", ui_font, drop_color=None, anchor="ne").place(310, 86)
 khz = Label(app, None, "khz", ui_font, weight="bold", color="#cbdae7").place(343, 86)
@@ -338,7 +199,7 @@ volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_2
                                    start_percent=1.0).place(222, 122)
 channels = Image(app, Skin.fromSpriteSheet("GUI/mono_stereo_96x20.png", 96)).place(424, 90)
 progress_bar = Slider(app, "GUI/progress_trough_487x20.png", "GUI/progress_handle_58x20.png",
-                                    updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(28, 152)
+                                gui.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(28, 152)
 progress_bar.disable()
 
 # Fade Buttons
@@ -365,20 +226,20 @@ loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
 loop_images.extend([None, loop_images[2], loop_images[1], loop_images[0]])
 loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(420, 194)
 
-#gA Window
+#guiABLE Window
 ga_size = (333, 278)
 ga_location = (int(app_location[0] + (app_size[0] * 0.5) - ga_size[0] * 0.5),
                int(app_location[1] + (app_size[1] * 0.5) - ga_size[1] * 0.5) )
 ga_win = ChildWindow(app, ga_location, width=ga_size[0], height=ga_size[1])
 ga_bg = Background(ga_win, "GUI/ga_win_333x278.png").place(0,0)
-ga_bg.bind("<FocusOut>", hideGAWin)
-ga_bg.bind("<Escape>", hideGAWin)
+ga_bg.bind("<FocusOut>", gui.hideGAWin)
+ga_bg.bind("<Escape>", gui.hideGAWin)
 ga_closed = time()      # Prevents instantly reopening ga_win if ga_instant is clicked while exiting the window.
 
 # guiABLE Button
 ga_img = UImage("GUI/gA_30x26.png").getSprites(30)
 ga_img.append(ga_img[1])
-ga_instant = InstantButton(app, ga_img, showGAWin).place(486, 194)
+ga_instant = InstantButton(app, ga_img, gui.showGAWin).place(486, 194)
 
 # Bindings
 app.bindDrag(top_bar)
