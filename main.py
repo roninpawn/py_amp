@@ -21,13 +21,15 @@ class ActiveTrack():
         self._meta = None
         self.kbps, self.khz, self.file_size, self.album_track, self.channels = 0.0, 0, 0, 0, 0
         self.title, self.artist, self.album = "", "", ""
+        self._status = "Unloaded"
 
         self.load(path)
 
-    def isLoaded(self): return bool(self._path)
-    def isPlaying(self): return self._track.playing
-    def isPaused(self): return self._track.paused
-    def loops(self): return self._loop
+    def status(self) -> str: return self._status
+    def isLoaded(self) -> bool: return bool(self._path)
+    def isPlaying(self) -> bool: return self._track.playing
+    def isPaused(self) -> bool: return self._track.paused
+    def loops(self) -> bool: return self._loop
 
     @property
     def duration(self): return self._duration
@@ -56,6 +58,7 @@ class ActiveTrack():
                 self.play()
             except:
                 self._path = ""
+                setState()
         return self.isLoaded()
 
     def play(self):
@@ -65,22 +68,28 @@ class ActiveTrack():
                 self._track.play()
                 self._track.seek(self._progress * self._duration)
             else: self._track.resume()
+            self._status = "Playing"
 
             self._track.set_volume(self._volume)
             self._track.loop_at_end(self._loop)
             updateProgress()
+            setState()
 
     def pause(self):
-        if self.isLoaded():
-            if self._track.paused:
-                self.play()
-            else: self._track.pause()
+        if self.isLoaded() and self._status != "Stopped":
+            if not self._track.paused:
+                self._track.pause()
+                self._status = "Paused"
+                setState()
+            else: self.play()
 
     def stop(self):
         if self.isLoaded() and self._track.active:
             self._track.stop()
+            self._status = "Stopped"
         self._progress = 0.0
         updateProgress(True)
+        setState()
 
     def setVolume(self, volume:float):
         self._volume = volume
@@ -264,6 +273,12 @@ def setVolume(volume:float, lock:bool = False):
 
     volume_slider.setPercent(volume)
 
+def setState():
+    if track.status() == "Playing": display_state.changeImage(1)    # Change state-icon here
+    elif track.status() == "Stopped": display_state.changeImage(2)
+    elif track.status() == "Paused": display_state.changeImage(3)
+    elif track.status() == "Unloaded": display_state.changeImage(0)
+
 def setStatics():
     track_lbl.setText(track.info)
     kbps = str(round(track.kbps))
@@ -273,8 +288,19 @@ def setStatics():
     display_duration.setText(getTime(track.duration))
     track_lbl.animate()
 
+def showGAWin():
+    if ga_win.visible() == False and ga_closed + 0.1 < time():
+        ga_win.visible(True)
+        ga_bg.focus_set()
+def hideGAWin(event=None):
+    global ga_closed
+    ga_closed = time()
+    ga_win.visible(False)
+
+
 # Spawn Window
-app = Window(540, 240, 450, 200, title="Py_Amp")
+app_size, app_location = (540, 240), (450, 200)
+app = Window(*app_size, *app_location, title="Py_Amp")
 app.setSkin(Skin("GUI/bg_540x240.png"))
 
 # Audio Engine Init
@@ -290,7 +316,11 @@ min_b = Button(app, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.mini
 exi_b = Button(app, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).place(518, 10)
 
 # Top-Mid
-display = Image(app, "GUI/display_187x99.png").place(24, 42)
+states = UImage("GUI/playback_state_icons_22x22.png").getSprites(22)
+states.insert(0, UImage())
+
+display = Image(app, "GUI/display_187x99.png",).place(24, 42)
+display_state = Image(display, states).place(16, 12)
 display_progress = Label(display, None, "00:00", digital_font, width=110).place(72, 0)
 display_duration = Label(display, None, "", digital_font, font_size=14, width=60).place(120, 42)
 track_bg = Image(app, "GUI/title_bar_303x28.png").place(220, 42)
@@ -335,8 +365,20 @@ loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
 loop_images.extend([None, loop_images[2], loop_images[1], loop_images[0]])
 loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(420, 194)
 
-# guiABLE Logo
-ga_instant = InstantButton(app, Skin.fromSpriteSheet("GUI/gA_30x26.png", 30)).place(486, 194)
+#gA Window
+ga_size = (333, 278)
+ga_location = (int(app_location[0] + (app_size[0] * 0.5) - ga_size[0] * 0.5),
+               int(app_location[1] + (app_size[1] * 0.5) - ga_size[1] * 0.5) )
+ga_win = ChildWindow(app, ga_location, width=ga_size[0], height=ga_size[1])
+ga_bg = Background(ga_win, "GUI/ga_win_333x278.png").place(0,0)
+ga_bg.bind("<FocusOut>", hideGAWin)
+ga_bg.bind("<Escape>", hideGAWin)
+ga_closed = time()      # Prevents instantly reopening ga_win if ga_instant is clicked while exiting the window.
+
+# guiABLE Button
+ga_img = UImage("GUI/gA_30x26.png").getSprites(30)
+ga_img.append(ga_img[1])
+ga_instant = InstantButton(app, ga_img, showGAWin).place(486, 194)
 
 # Bindings
 app.bindDrag(top_bar)
