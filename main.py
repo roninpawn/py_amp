@@ -151,6 +151,13 @@ class GuiManager():
         duration_sec10.changeImage(int(secs[0]))
         duration_sec1.changeImage(int(secs[1]))
 
+    def loseFocus(self, event=None):
+        drag_handle.changeImage(0)
+        python_logo.changeImage(0)
+    def getFocus(self, event=None):
+        drag_handle.changeImage(1)
+        python_logo.changeImage(1)
+
     def showGAWin(self):
         if ga_win.visible() == False and self._ga_closed_since + 0.1 < time():
             ga_win.visible(True)
@@ -175,10 +182,15 @@ track = ActiveTrack(gui_manager=gui_manager, tk_after=app)
 ui_font = FontPack("Arial", 12, "normal", "#22ee22")
 
 # Top
-top_bar = Hover(app, ("GUI/top_bar_unfocused_479x14.png", "GUI/top_bar_focused_479x14.png")).place(10, 10)
-min_b = Button(app, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.minimize).place(496 ,10)
-exi_b = Button(app, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).place(518, 10)
-app.bindDrag(top_bar)       # Drag the main window by dragging top_bar.
+top_bar = Collection(app).place(0,0)
+python_logo = Image(top_bar, Skin.fromSpriteSheet("GUI/python_logo_14x14.png", 14)).place(10, 10)
+drag_handle = Image(top_bar, Skin.fromSpriteSheet("GUI/top_bar_456x28.png", 456)).place(31, 3)
+app.bind_all("<FocusOut>", gui_manager.loseFocus)
+app.bind_all("<FocusIn>", gui_manager.getFocus)
+
+min_b = Button(top_bar, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.minimize).place(496 ,10)
+exi_b = Button(top_bar, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).place(518, 10)
+app.bindDrag(drag_handle)       # Drag the main window by dragging top_bar.
 
 # Display
 display = Image(app, "GUI/display_187x99.png",).place(24, 39)
@@ -234,9 +246,10 @@ stop_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/stop_44x36.png", 44),
 next_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/next_44x36.png", 44)).place(176, 0)
 eject_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/eject_44x36.png", 44),gui_manager.loadTrack).place(232, 0)
 
-# Half Buttons
+# Loop Button
 loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
-loop_images.extend([None, loop_images[2], loop_images[1], loop_images[0]])
+loop_images.extend([None, None, loop_images[2], loop_images[0]])
+loop_images[1] = loop_images[0]
 loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(420, 194)
 
 #guiABLE Popup Window
