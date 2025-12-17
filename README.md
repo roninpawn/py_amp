@@ -6,7 +6,7 @@ Just getting started. At time of writing I've got less than a full week's spare-
 
 ## Intended Features
 - Playback of most audio formats. ✅
-- Livestream convenience buttons.
+- Livestream convenience buttons. ✅
 - EQ visualization like the original WinAmp had.
 - Multiple, tabbed playlists with various sorting methods, including 'randomize.'
 - A soundboard? ...that provides an expandable, populatable, resizable grid of buttons to which audio can be attached?
