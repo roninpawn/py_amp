@@ -222,7 +222,7 @@ fi = UImage("GUI/fade_in_22x24.png").getSprites(22)
 fo = UImage("GUI/fade_out_22x24.png").getSprites(22)
 fu = UImage("GUI/fade_under_22x24.png").getSprites(22)
 fade_in = Button(fade_buttons, (fi[0],fi[0],fi[1]), lambda:track.fadeVolume(1.0, 1.25)).place(0, 0)
-fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 5.0)).place(22, 0)
+fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 7.0)).place(22, 0)
 fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.2, 1.25)).place(44, 0)
 
 # Multimedia Buttons
