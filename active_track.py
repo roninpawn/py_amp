@@ -51,14 +51,23 @@ class ActiveTrack():
                 self._track.load_file(path)
                 self._duration = self._track.duration
                 self._populateMeta(path)
-                self._gui.setStatics()
-
                 self._path = path
                 self.play()
-            except:
-                self._path = ""
-                self._gui.setState()
+            except Exception as e:
+                try:                # Play error sound
+                    self._track.load_file("GUI/551543__phiiraco__8-bit-denyerror-sound.wav")
+                    self._track.play()
+                except Exception as e2: print("Failed to play error sound:\n", e2)
+
+                self._reset()       # Reset, propagate error message, and unload track.
+                e = str(e)
+                self.title = f"CANNOT PLAY FILE: '{path.replace("\\", "/").split('/')[-1]}'" if e == "MA_ERROR" else e
+                self._gui.unloadTrack()
+
+            self._gui.setStatics()
         return self.isLoaded()
+
+    def unload(self): self._reset()
 
     def play(self):
         if self.isLoaded():
@@ -83,12 +92,12 @@ class ActiveTrack():
             else: self.play()
 
     def stop(self):
-        if self.isLoaded() and self._track.active:
-            self._track.stop()
+        if self.isLoaded():
             self._status = "Stopped"
-        self._progress = 0.0
-        self._gui.updateProgress(True)
-        self._gui.setState()
+            if self._track.active: self._track.stop()
+            self._progress = 0.0
+            self._gui.updateProgress(True)
+            self._gui.setState()
 
     def setVolume(self, volume:float):
         self._volume = volume
@@ -154,14 +163,16 @@ class ActiveTrack():
         if not will_loop or self.isPlaying(): self._track.loop_at_end(will_loop)
 
     def _reset(self):
-        self._track.stop()
+        try: self._track.load_file("")
+        except: pass
 
         self._path = ""
         self._duration, self._progress = 0.0, 0.0
 
         self._meta = None
         self.kbps, self.khz, self.file_size, self.album_trac, self.channels = 0.0, 0, 0, 0, 0
-        self.title, self.artist, self.album = "", "", ""
+        self.title, self.artist, self.album = "No track loaded.", "", ""
+        self._status = "Unloaded"
 
     def _populateMeta(self, path:str):
         self._meta = TinyTag.get(path)
