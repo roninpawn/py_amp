@@ -55,6 +55,7 @@ class ActiveTrack():
                 self.play()
             except Exception as e:
                 try:                # Play error sound
+                    self._track.set_volume(1.0)
                     self._track.load_file("GUI/551543__phiiraco__8-bit-denyerror-sound.wav")
                     self._track.play()
                 except Exception as e2: print("Failed to play error sound:\n", e2)
@@ -170,7 +171,7 @@ class ActiveTrack():
         self._duration, self._progress = 0.0, 0.0
 
         self._meta = None
-        self.kbps, self.khz, self.file_size, self.album_trac, self.channels = 0.0, 0, 0, 0, 0
+        self.kbps, self.khz, self.file_size, self.album_track, self.channels = 0.0, 0, 0, 0, 0
         self.title, self.artist, self.album = "No track loaded.", "", ""
         self._status = "Unloaded"
 

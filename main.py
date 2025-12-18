@@ -8,14 +8,21 @@ from active_track import ActiveTrack
 """ Extend guiABLE's Label() to create a self-animating Marquee, for when track metadata exceeds the given area. """
 class Marquee(Label):
     def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
-        text_bbox = self.bbox(self._img_text)
-        req_width = text_bbox[0] + text_bbox[2]
-        self._last_offset_x = 0
-
         # End any animation that is already in progress.
         try:
             self.after_cancel(self._animate[7])
         except: pass
+
+        # Reset text to origin  position.
+        if self._img_text: self.delete(self._img_text)
+        if self._img_text_shadow: self.delete(self._img_text_shadow)
+        self._img_text, self._img_text_shadow = None, None
+        self.redraw()
+
+        # Measure whether animation is needed.
+        text_bbox = self.bbox(self._img_text)
+        req_width = text_bbox[0] + text_bbox[2]
+        self._last_offset_x = 0
 
         # Only animate if the text extends beyond the given area.
         if self.width < req_width:
