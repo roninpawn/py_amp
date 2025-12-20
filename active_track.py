@@ -44,7 +44,7 @@ class ActiveTrack():
         if self.album_track: out += f" [Track #{self.album_track}]"
         return out.strip()
 
-    def load(self, path:str, autoplay=True):
+    def load(self, path:str, autoplay=True, display_error=True):
         if path:
             self._reset()
             try:
@@ -56,15 +56,16 @@ class ActiveTrack():
                 if autoplay: self.play()
                 else: self.stop()
             except Exception as e:
-                try:                # Play error sound
-                    self._track.set_volume(1.0)
-                    self._track.load_file("GUI/551543__phiiraco__8-bit-denyerror-sound.wav")
-                    self._track.play()
-                except Exception as e2: print("Failed to play error sound:\n", e2)
+                self._reset()
+                if display_error:
+                    try:                # Play error sound
+                        self._track.set_volume(1.0)
+                        self._track.load_file("GUI/551543__phiiraco__8-bit-denyerror-sound.wav")
+                        self._track.play()
+                    except Exception as e2: print("Failed to play error sound:\n", e2)
 
-                self._reset()       # Reset, propagate error message, and unload track.
-                e = str(e)
-                self.title = f"CANNOT PLAY FILE: '{path.replace("\\", "/").split('/')[-1]}'" if e == "MA_ERROR" else e
+                    e = str(e)
+                    self.title = f"CANNOT PLAY FILE: '{path.replace("\\", "/").split('/')[-1]}'" if e == "MA_ERROR" else e
                 self._gui.unloadTrack()
 
             self._gui.setStatics()

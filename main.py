@@ -84,7 +84,9 @@ class GuiManager():
         else:
             self.config.add_section('General')
         if "Recent" in self.config.sections() and "0" in self.config["Recent"]:
-            track.load(self.config.get("Recent", "0", fallback=""), False)
+            success = track.load(self.config.get("Recent", "0", fallback=""), False, False)
+            if not success:
+                self.config.remove_option("Recent", "0")
 
     def writeSettings(self):
         self.config.set('General', 'volume', str(track.volume))
