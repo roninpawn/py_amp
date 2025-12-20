@@ -225,7 +225,7 @@ class GuiManager():
 """ Define the main PY_AMP GUI in less than 100 lines of code. ;) """
 # Spawn Window
 gui_manager = GuiManager()
-app = Window(540, 240, *gui_manager.storedAppPosition(), title="Py_Amp")
+app = Window(*gui_manager.storedAppPosition(), width=540, height=240, title="Py_Amp")
 app.setSkin(Skin("GUI/bg_540x240.png"))
 
 # Initialize Audio Engine
@@ -308,10 +308,8 @@ loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).p
 #guiABLE Popup Window
 gui_manager.loadSettings()
 ga_size = (333, 278)
-app_size, app_location = app._window.geometry().split("+",1)
-app_size = [int(x) for x in app_size.split("x")]
-app_location = [int(x) for x in app_location.split("+")]
-print(app_location, app_size)
+win_geom = app.windowGeometry()
+app_size, app_location = win_geom[2:], win_geom[:2]
 ga_location = (int(app_location[0] + (app_size[0] * 0.5) - ga_size[0] * 0.5),
                int(app_location[1] + (app_size[1] * 0.5) - ga_size[1] * 0.5) )
 ga_win = ChildWindow(app, ga_location, width=ga_size[0], height=ga_size[1])
