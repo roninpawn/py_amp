@@ -22,7 +22,7 @@ class ActiveTrack():
         self.title, self.artist, self.album = "", "", ""
         self._status = "Unloaded"
 
-        self.load(path)
+        self.load(path, False)
 
     def status(self) -> str: return self._status
     def isLoaded(self) -> bool: return bool(self._path)
@@ -44,7 +44,7 @@ class ActiveTrack():
         if self.album_track: out += f" [Track #{self.album_track}]"
         return out.strip()
 
-    def load(self, path:str):
+    def load(self, path:str, autoplay=True):
         if path:
             self._reset()
             try:
@@ -52,7 +52,9 @@ class ActiveTrack():
                 self._duration = self._track.duration
                 self._populateMeta(path)
                 self._path = path
-                self.play()
+                self._gui.registerTrack(path)
+                if autoplay: self.play()
+                else: self.stop()
             except Exception as e:
                 try:                # Play error sound
                     self._track.set_volume(1.0)

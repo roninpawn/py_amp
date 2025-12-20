@@ -1,5 +1,6 @@
 from tkinter.filedialog import askopenfilename
 from time import time
+import configparser
 
 from guiABLE import *
 from active_track import ActiveTrack
@@ -69,15 +70,59 @@ class GuiManager():
         self._ga_closed_since = 0.0
         self._since_loaded = 0.0
 
+        self.config = configparser.ConfigParser()
+        try: self.config.read('config.ini')
+        except:
+            self.config.add_section('General')
+            self.config.set('General', 'geometry', '100+100')
+
+    def loadSettings(self):
+        if "General" in self.config.sections():
+            volume = self.config.getfloat('General', 'volume', fallback=1.0)
+            track.setVolume(volume)
+            self.setVolume(volume)
+        else:
+            self.config.add_section('General')
+        if "Recent" in self.config.sections() and "0" in self.config["Recent"]:
+            track.load(self.config.get("Recent", "0", fallback=""), False)
+
+    def writeSettings(self):
+        self.config.set('General', 'volume', str(track.volume))
+        self.config.set('General', 'geometry', app._window.winfo_geometry().split('+', 1)[-1])
+        with open('config.ini', 'w') as configfile: self.config.write(configfile)
+
+    def storedAppPosition(self):
+        return [int(x) for x in self.config.get('General', 'geometry', fallback="100+100").split('+')]
+
+    def quit(self):
+        self.writeSettings()
+        app.quit()
+
     def loadTrack(self):
         # Prevents a false click-through when double-clicking to open a file that is directly atop the load button.
         if self._since_loaded + 0.1 < time(): track.load(askopenfilename())
         self._since_loaded = time()
 
-    def unloadTrack(self, message:str = "No track loaded."):
+    def unloadTrack(self):
         progress_bar.setPercent(0.0)
         progress_bar.disable()
         self.setState()
+
+    def registerTrack(self, path:str):
+        if "Recent" not in self.config.sections():
+            self.config.add_section("Recent")           # Create section
+            self.config.set("Recent", "0", path)        # Add current track as only member of the list.
+        else:
+            tracks = list(self.config["Recent"].values())
+            for track in tracks:                        # Purge any duplicates.
+                if path == track: tracks.remove(track)
+            tracks.insert(0, path)                      # Insert the current track at the top of the list.
+            if len(tracks) > 5: tracks.pop()            # Limit the length of the list to 5 tracks.
+
+            self.config.remove_section("Recent")        # Empty the existing 'Recent' list entirely.
+            self.config.add_section("Recent")
+            for i, track in enumerate(tracks):          # Repopulate 'Recent' with the new stack.
+                self.config.set("Recent", str(i), track)
 
     @staticmethod
     def setVolume(volume:float, lock:bool = False):
@@ -177,12 +222,11 @@ class GuiManager():
 
 """ Define the main PY_AMP GUI in less than 100 lines of code. ;) """
 # Spawn Window
-app_size, app_location = (540, 240), (450, 200)
-app = Window(*app_size, *app_location, title="Py_Amp")
+gui_manager = GuiManager()
+app = Window(540, 240, *gui_manager.storedAppPosition(), title="Py_Amp")
 app.setSkin(Skin("GUI/bg_540x240.png"))
 
 # Initialize Audio Engine
-gui_manager = GuiManager()
 track = ActiveTrack(gui_manager=gui_manager, tk_after=app)
 
 # Fonts
@@ -196,7 +240,7 @@ app.bind_all("<FocusOut>", gui_manager.loseFocus)
 app.bind_all("<FocusIn>", gui_manager.getFocus)
 
 min_b = Button(top_bar, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.minimize).place(496 ,10)
-exi_b = Button(top_bar, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), app.quit).place(518, 10)
+exi_b = Button(top_bar, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), gui_manager.quit).place(518, 10)
 app.bindDrag(drag_handle)       # Drag the main window by dragging top_bar.
 
 # Display
@@ -260,7 +304,12 @@ loop_images[1] = loop_images[0]
 loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(420, 194)
 
 #guiABLE Popup Window
+gui_manager.loadSettings()
 ga_size = (333, 278)
+app_size, app_location = app._window.geometry().split("+",1)
+app_size = [int(x) for x in app_size.split("x")]
+app_location = [int(x) for x in app_location.split("+")]
+print(app_location, app_size)
 ga_location = (int(app_location[0] + (app_size[0] * 0.5) - ga_size[0] * 0.5),
                int(app_location[1] + (app_size[1] * 0.5) - ga_size[1] * 0.5) )
 ga_win = ChildWindow(app, ga_location, width=ga_size[0], height=ga_size[1])
