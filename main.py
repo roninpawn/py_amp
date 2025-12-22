@@ -9,6 +9,9 @@ from active_track import ActiveTrack
 """ Extend guiABLE's Label() to create a self-animating Marquee, for when track metadata exceeds the given area. """
 class Marquee(Label):
     def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
+        self._benchmark_duration = 0
+        self._benchmark_count = 0
+
         # End any animation that is already in progress.
         try:
             self.after_cancel(self._animate[7])
@@ -45,6 +48,7 @@ class Marquee(Label):
 
             # Only redraw text if the pixel position has changed.
             if offset_x != self._last_offset_x:
+                start = time()      # .00013
                 # Remove old text.
                 if self._img_text: self.delete(self._img_text)
                 if self._img_text_shadow: self.delete(self._img_text_shadow)
@@ -52,6 +56,65 @@ class Marquee(Label):
                 # Create text in new position.
                 self.drawText(offset_x)
                 self._last_offset_x = offset_x
+
+                self._benchmark_duration += time() - start
+                self._benchmark_count += 1
+                if self._benchmark_count >= 100:
+                    print(self._benchmark_duration / 100, "Marquee() draw time.")
+                    self._benchmark_count = 0
+                    self._benchmark_duration = 0
+
+            self._animate[7] = self.after(self._animate[5], self._animationStep)    # Schedule next step.
+        else:
+            # Flip origin with destination and set a new start time.
+            new_origin = self._animate[3]
+            self._animate[3] = self._animate[1]
+            self._animate[1] = new_origin
+            self._animate[0] = time() + (self._animate[6] / 1000)
+            self._animate[7] = self.after(self._animate[6], self._animationStep)
+
+
+""" Slower redraws at +.0003s. Trash this code after its been chronicled in a commit. """
+class AltMarquee(Background):
+    def __init__(self, parent, width, height, color, text, font_pack, **kwargs):
+        super().__init__(parent, Skin.fromColors(color), width=width, height=height)
+        label_skin = Skin.fromColors(color)
+        print(label_skin.isOpaque())
+        self._label = Label(self, label_skin, text, font_pack, **kwargs).place(0, 0)
+
+    def setText(self, text:str): self._label.setText(text)
+    def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
+        # End any animation that is already in progress.
+        try:
+            self.after_cancel(self._animate[7])
+        except: pass
+
+        # Reset text to origin  position.
+        self._label.update_idletasks()
+        self._label.place_configure(0, 0)
+
+        # Only animate if the text extends beyond the given area.
+        if self.width < self._label.width:
+            origin = 0
+            destination = self.width - self._label.width
+            duration = abs(origin - destination) / pixel_delta
+            animation_id = self.after_idle(self._animationStep)
+            framerate = round(1000 / fps)
+
+            # Initiate on a forced inverse-completion, triggering a delay and origin/destination flip.
+            self._animate = [time() - duration, destination, 1.0, origin, duration, framerate, delay_ms, animation_id]
+
+    def _animationStep(self):
+        self._animate[2] = min(1.0, (time() - self._animate[0]) / self._animate[4])
+
+        if self._animate[2] < 1.0:
+            # Interpolate new offset.
+            x_pos = round(self._animate[1] + (self._animate[3] - self._animate[1]) * self._animate[2])
+
+            # Only redraw text if the pixel position has changed.
+            if x_pos != self._label.x:
+                start = time()
+                self._label.place_configure(x_pos, self._label.y)
 
             self._animate[7] = self.after(self._animate[5], self._animationStep)    # Schedule next step.
         else:
@@ -269,6 +332,8 @@ duration_sec1 = Image(display_duration, small_digit_skin).place(50, 0)
 # Track Listing
 track_bg = Image(app, "GUI/title_bar_303x28.png").place(220, 42)
 track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=299).place(2, 0)
+
+#track_lbl = AltMarquee(track_bg, 299, 23, "black", "No track loaded.", ui_font, text_pos=(6,2)).place(2, 2)
 
 # Mid
 kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, anchor="ne", text_pos=(46, 2)).place(220, 86)
