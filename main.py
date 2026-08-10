@@ -295,31 +295,30 @@ duration_sec10 = Image(display_duration, small_digit_skin).place(50, 0)
 duration_sec1 = Image(display_duration, small_digit_skin).place(61, 0)
 
 # Track Listing
-track_bg = Image(app, "GUI/title_bar_250x27.png").place(170, 34)
+track_bg = Image(app, "GUI/title_bar_250x27.png").place(169, 34)
 track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=242).place(4, 0)
 
 # Mid
-kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 2)).place(170, 66)
-khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 2)).place(260, 66)
+kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 2)).place(169, 66)
+khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 2)).place(259, 66)
 volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
-                                   lambda:track.setVolume(volume_slider.getPercent()),
-                                   start_percent=1.0).place(170, 94)
+                                   lambda:track.setVolume(volume_slider.getPercent())).place(169, 93)
 channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_48x20.png", 48)).place(368, 67)
 progress_bar = Slider(app, "GUI/progress_trough_399x20.png", "GUI/progress_handle_58x20.png",
-                      gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(21, 117)
+                      gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(21, 116)
 progress_bar.disable()      # Until a track has been loaded.
 
 # Fade Buttons
-fade_buttons = Collection(app).place(354, 89)
+fade_buttons = Collection(app).place(346, 89)
 fi = UImage("GUI/fade_in_22x24.png").getSprites(22)
 fo = UImage("GUI/fade_out_22x24.png").getSprites(22)
 fu = UImage("GUI/fade_under_22x24.png").getSprites(22)
 fade_in = Button(fade_buttons, (fi[0],fi[0],fi[1]), lambda:track.fadeVolume(1.0, 1.25)).place(0, 0)
-fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 7.0)).place(18, 0)
-fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.2, 1.25)).place(36, 0)
+fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 7.0)).place(22, 0)
+fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.25, 1.25)).place(44, 0)
 
 # Multimedia Buttons
-track_buttons = Collection(app).place(21, 145)
+track_buttons = Collection(app).place(21, 144)
 prev_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/prev_44x36.png", 44)).place(0, 0)
 play_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/play_44x36.png", 44), track.play).place(44, 0)
 pause_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/pause_44x36.png", 44), track.pause).place(88,0)
@@ -331,7 +330,7 @@ eject_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/eject_44x36.png", 44
 loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
 loop_images.extend([None, None, loop_images[2], loop_images[0]])
 loop_images[1] = loop_images[0]
-loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(305, 146)
+loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(305, 144)
 
 #guiABLE Popup Window
 gui_manager.loadSettings()

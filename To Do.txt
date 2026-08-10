@@ -1,0 +1,91 @@
+===== TO DO =====
+> BUG: Cannot drag the progress handle at startup, even if a track is loaded.
+> BUG: Top bar is not in active state at application start.
+> Clicking the volume / progress trough should immediately draw the handle to the clicked position.
+
+> Enable playlist creation and management. (introduces Trees)
+    X Persistent Config Data via ConfigParser
+        X Volume level, Last track, Window position, Recently played.
+        : ...eventually 'Collection' and Recent Collections.
+    - Playlist format ("Collection" contains tabs of Playlists)
+        : Tabs > Sort method > Tracks (in the order that will be loaded) > Active track is marked + time when closed
+    - Separate window with tabs to hold multiple lists.
+    - Add File, Folder, Folder and Subfolders
+        : Must find and add only playable types.
+    - Drag and drop to add track? Is this possible in Python/Tkinter?
+    - Order by Name, Duration
+        : Artist > Album > Song where meta data exists
+    - Randomize option.
+    - Reorder individual elements by dragging.
+
+> Remember and store playhead position at time of close. Reopen paused at that moment.
+
+> Add functioning links to the guiABLE popup.
+    - Probably wants a LinkURL() class in guiABLE.
+
+> Don't animate stuff if the application is minimized.
+    - Pickup where you left off the moment it deiconifies.
+
+> Use SciPy to produce an EQ visualization. (Fun)
+    - Sprite sheet to represent n discreet volume levels.
+    - Pre-calculate i seconds of a song's visualization, with j notations per second and k offset between bands.
+        : Find the level of each EQ band at a certain millisecond in the playback and store these relations as a map.
+    - Swap each EQ band's image to the appropriate level, at the appropriate time.
+        : When the current time >= the next map time for this band, set image = the level recorded in the map.
+        : Offset each slider to update on a different frame for maximum animation-fluidity and minimum draw overhead.
+
+> Soundboard feature (introduces Resizability)
+    - Separate window that contains labelable/colorable/iconable buttons that play a linked sound when pressed.
+    - Define a grid size (ixj) and the window resizes to be able to contain that many buttons of the current scale.
+    - Drag the window to adjust the button scale.
+    - Double click on any unpopulated grid location to configure it.
+    - Or drag & drop onto the grid, to begin configuration.
+    - Lock-buttons option prevents existing buttons from being moved.
+    - Lock-grid option prevents new buttons from being created.
+    - Support always-on-top.
+
+> Solve: FONTS.
+    - How can we distribute the fonts that are needed for a guiABLE project to look the way it did on the dev PC?
+    - root.tk.call( "font", "create", "MyFont",
+                    "-file", font_path,
+                    "-size", 12 )
+    - The above does not work in Tkinter, but Python CAN side-load a font in Windows. In Linux/Mac, it must INSTALL the
+      font. Which may piss some users off. So fuck 'em. Support Windows side-loading only.
+
+> Confirm and report loop_at_end bug where a track that has completed - even if manually stop()'d - will immediately
+  begin, the moment loop_at_end is set True.
+> Confirm and report stuttering playback bug to library maintainers.
+
+===== DONE =====
+X Optimize the Marquee -- TRIED: It was slower than direct redraw of the text layer.
+    X Currently it redraws the text each frame. With an opaque background, it could just slide the text back and forth
+      within a parent layer.
+        X Track background bar > Slide space (so it doesn't breach the bar borders) > Actual Text
+
+X Trap errors and provide sound feedback for when a file cannot be played.
+
+X Make my own lcd numbers, as png?
+    X Import as a spritesheet.
+    X Use each second/minute/hour digit to set the associated image to the correct number.
+
+X Add in the guiABLE promotional popup window.
+
+X Gather meta data and display it appropriately.
+    X Playhead status. (Play/Pause/Stop, temporal position)
+
+X Collect/report playhead status and update statics to show a pause/play/stop symbol as appropriate.
+
+X A Marquee() class for scrolling the track info until all has been seen, and then looping.
+
+X Streamer convenience buttons.
+    X Fade volume to n%
+        X One button for 20% and one for 100%.
+    X Fade out over duration of n seconds.
+        : Configurable in settings.
+
+X Gather meta data and display it appropriately.
+    X Song, Album, Artist or just Filename if data doesn't exist.
+    X Duration
+    X Mono or Stereo
+    X kbps and kHz
+    X Channel count
