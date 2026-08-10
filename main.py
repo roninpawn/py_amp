@@ -304,7 +304,7 @@ khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="
 volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
                                    lambda:track.setVolume(volume_slider.getPercent()),
                                    start_percent=1.0).place(170, 94)
-channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_96x20.png", 48)).place(368, 67)
+channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_48x20.png", 48)).place(368, 67)
 progress_bar = Slider(app, "GUI/progress_trough_399x20.png", "GUI/progress_handle_58x20.png",
                       gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(21, 117)
 progress_bar.disable()      # Until a track has been loaded.
