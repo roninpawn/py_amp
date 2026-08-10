@@ -74,64 +74,13 @@ class Marquee(Label):
             self._animate[7] = self.after(self._animate[6], self._animationStep)
 
 
-""" Slower redraws at +.0003s. Trash this code after its been chronicled in a commit. """
-class AltMarquee(Background):
-    def __init__(self, parent, width, height, color, text, font_pack, **kwargs):
-        super().__init__(parent, Skin.fromColors(color), width=width, height=height)
-        label_skin = Skin.fromColors(color)
-        print(label_skin.isOpaque())
-        self._label = Label(self, label_skin, text, font_pack, **kwargs).place(0, 0)
-
-    def setText(self, text:str): self._label.setText(text)
-    def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
-        # End any animation that is already in progress.
-        try:
-            self.after_cancel(self._animate[7])
-        except: pass
-
-        # Reset text to origin  position.
-        self._label.update_idletasks()
-        self._label.place_configure(0, 0)
-
-        # Only animate if the text extends beyond the given area.
-        if self.width < self._label.width:
-            origin = 0
-            destination = self.width - self._label.width
-            duration = abs(origin - destination) / pixel_delta
-            animation_id = self.after_idle(self._animationStep)
-            framerate = round(1000 / fps)
-
-            # Initiate on a forced inverse-completion, triggering a delay and origin/destination flip.
-            self._animate = [time() - duration, destination, 1.0, origin, duration, framerate, delay_ms, animation_id]
-
-    def _animationStep(self):
-        self._animate[2] = min(1.0, (time() - self._animate[0]) / self._animate[4])
-
-        if self._animate[2] < 1.0:
-            # Interpolate new offset.
-            x_pos = round(self._animate[1] + (self._animate[3] - self._animate[1]) * self._animate[2])
-
-            # Only redraw text if the pixel position has changed.
-            if x_pos != self._label.x:
-                start = time()
-                self._label.place_configure(x_pos, self._label.y)
-
-            self._animate[7] = self.after(self._animate[5], self._animationStep)    # Schedule next step.
-        else:
-            # Flip origin with destination and set a new start time.
-            new_origin = self._animate[3]
-            self._animate[3] = self._animate[1]
-            self._animate[1] = new_origin
-            self._animate[0] = time() + (self._animate[6] / 1000)
-            self._animate[7] = self.after(self._animate[6], self._animationStep)
-
-
 """ Consolidate GUI functions - some of which provide an interface to ActiveTrack() - into a passable class object. """
 class GuiManager():
     def __init__(self):
         self._progress_locked = False
         self._ga_closed_since = 0.0
         self._since_loaded = 0.0
+        self._playlist_focus = False
 
         self.config = configparser.ConfigParser()
         try: self.config.read('config.ini')
@@ -162,6 +111,10 @@ class GuiManager():
     def quit(self):
         self.writeSettings()
         app.quit()
+
+    def playlistClose(self):
+        playlist_win.visible(False)
+        app.focus_force()
 
     def loadTrack(self):
         # Prevents a false click-through when double-clicking to open a file that is directly atop the load button.
@@ -214,7 +167,7 @@ class GuiManager():
         kbps_box.setText(kbps[:len(kbps)-3] + "k" if kbps and len(kbps) > 3 else kbps)
         khz_box.setText(khz)
 
-        channels.setState(track.channels if track.channels < 3 else 2)
+        channels.setState(0 if track.channels < 2 else 1)
         self.setDuration(self.getTime(track.duration))
 
         track_lbl.animate()
@@ -272,8 +225,10 @@ class GuiManager():
         drag_handle.changeImage(0)
         python_logo.changeImage(0)
     def getFocus(self, event=None):
-        drag_handle.changeImage(1)
-        python_logo.changeImage(1)
+        if not self._playlist_focus:
+            drag_handle.changeImage(1)
+            python_logo.changeImage(1)
+        else: drag_handle.changeImage(0)
 
     def showGAWin(self):
         if ga_win.visible() == False and self._ga_closed_since + 0.1 < time():
@@ -284,12 +239,21 @@ class GuiManager():
         self._ga_closed_since = time()
         ga_win.visible(False)
 
+    def playlistGetFocus(self, event=None):
+        self._playlist_focus = True
+        playlist_top_bar.changeImage(1)
+
+    def playlistLoseFocus(self, event=None):
+        self._playlist_focus = False
+        playlist_top_bar.changeImage(0)
+
 
 """ Define the main PY_AMP GUI in less than 100 lines of code. ;) """
 # Spawn Window
 gui_manager = GuiManager()
-app = Window(*gui_manager.storedAppPosition(), width=540, height=240, title="Py_Amp")
-app.setSkin(Skin("GUI/bg_540x240.png"))
+app = Window(*gui_manager.storedAppPosition(), width=432, height=192, title="Py_Amp")
+bg_skin = Skin("GUI/bg_432x192.png")
+app.setSkin(bg_skin)
 
 # Initialize Audio Engine
 track = ActiveTrack(gui_manager=gui_manager, tk_after=app)
@@ -299,76 +263,75 @@ ui_font = FontPack("Arial", 12, "normal", "#22ee22")
 
 # Top
 top_bar = Collection(app).place(0,0)
-python_logo = Image(top_bar, Skin.fromSpriteSheet("GUI/python_logo_14x14.png", 14)).place(10, 10)
-drag_handle = Image(top_bar, Skin.fromSpriteSheet("GUI/top_bar_456x28.png", 456)).place(31, 3)
+python_logo = Image(top_bar, Skin.fromSpriteSheet("GUI/python_logo_14x14.png", 14)).place(8, 8)
+drag_handle = Image(top_bar, Skin.fromSpriteSheet("GUI/top_bar_363x28.png", 363)).place(27, 2)
 app.bind_all("<FocusOut>", gui_manager.loseFocus)
 app.bind_all("<FocusIn>", gui_manager.getFocus)
 
-min_b = Button(top_bar, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.minimize).place(496 ,10)
-exi_b = Button(top_bar, Skin.fromSpriteSheet("GUI/exit_14x14.png", 14), gui_manager.quit).place(518, 10)
+exit_skin = Skin.fromSpriteSheet("GUI/exit_14x14.png", 14)
+min_b = Button(top_bar, Skin.fromSpriteSheet("GUI/minimize_14x14.png", 14), app.minimize).place(396 ,8)
+exi_b = Button(top_bar, exit_skin, gui_manager.quit).place(414, 8)
 app.bindDrag(drag_handle)       # Drag the main window by dragging top_bar.
 
 # Display
-display = Image(app, "GUI/display_187x99.png",).place(24, 39)
-display_state = Image(display, (UImage(), *UImage("GUI/playback_state_icons_22x22.png").getSprites(22))).place(16, 11)
+display = Image(app, "GUI/display_143x78.png",).place(19, 32)
+display_state = Image(display, (UImage(), *UImage("GUI/playback_state_icons_22x22.png").getSprites(22))).place(10, 44)
 
 digit_skin = Skin(*UImage("GUI/segmented_digits_20x32.png").getSprites(20), UImage())
-display_progress = Collection(display).place(54, 6)
+display_progress = Collection(display).place(21, 5)
 progress_min100 = Image(display_progress, digit_skin, 10).place(0, 0)
-progress_min10 = Image(display_progress, digit_skin).place(24, 0)
-progress_min1 = Image(display_progress, digit_skin).place(48, 0)
-progress_sec10 = Image(display_progress, digit_skin).place(82, 0)
-progress_sec1 = Image(display_progress, digit_skin).place(106, 0)
+progress_min10 = Image(display_progress, digit_skin).place(21, 0)
+progress_min1 = Image(display_progress, digit_skin).place(42, 0)
+progress_sec10 = Image(display_progress, digit_skin).place(72, 0)
+progress_sec1 = Image(display_progress, digit_skin).place(93, 0)
 
-small_digit_skin = Skin(*UImage("GUI/segmented_digits_8x13.png").getSprites(8), UImage())
-display_duration = Collection(display).place(121, 43)
+small_digit_skin = Skin(*UImage("GUI/segmented_digits_10x16.png").getSprites(10), UImage())
+display_duration = Collection(display).place(62, 45)
 duration_min1000 = Image(display_duration, small_digit_skin, 10).place(0, 0)
-duration_min100 = Image(display_duration, small_digit_skin, 10).place(9, 0)
-duration_min10 = Image(display_duration, small_digit_skin).place(18, 0)
-duration_min1 = Image(display_duration, small_digit_skin).place(27, 0)
-duration_sec10 = Image(display_duration, small_digit_skin).place(41, 0)
-duration_sec1 = Image(display_duration, small_digit_skin).place(50, 0)
+duration_min100 = Image(display_duration, small_digit_skin, 10).place(11, 0)
+duration_min10 = Image(display_duration, small_digit_skin).place(22, 0)
+duration_min1 = Image(display_duration, small_digit_skin).place(33, 0)
+duration_sec10 = Image(display_duration, small_digit_skin).place(50, 0)
+duration_sec1 = Image(display_duration, small_digit_skin).place(61, 0)
 
 # Track Listing
-track_bg = Image(app, "GUI/title_bar_303x28.png").place(220, 42)
-track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=299).place(2, 0)
-
-#track_lbl = AltMarquee(track_bg, 299, 23, "black", "No track loaded.", ui_font, text_pos=(6,2)).place(2, 2)
+track_bg = Image(app, "GUI/title_bar_250x27.png").place(170, 34)
+track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=242).place(4, 0)
 
 # Mid
-kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, anchor="ne", text_pos=(46, 2)).place(220, 86)
-khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, anchor="ne", text_pos=(38, 2)).place(312, 86)
+kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 2)).place(170, 66)
+khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 2)).place(260, 66)
 volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
                                    lambda:track.setVolume(volume_slider.getPercent()),
-                                   start_percent=1.0).place(222, 122)
-channels = Image(app, Skin.fromSpriteSheet("GUI/mono_stereo_96x20.png", 96)).place(424, 90)
-progress_bar = Slider(app, "GUI/progress_trough_487x20.png", "GUI/progress_handle_58x20.png",
-                      gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(28, 152)
+                                   start_percent=1.0).place(170, 94)
+channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_96x20.png", 48)).place(368, 67)
+progress_bar = Slider(app, "GUI/progress_trough_399x20.png", "GUI/progress_handle_58x20.png",
+                      gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(21, 117)
 progress_bar.disable()      # Until a track has been loaded.
 
 # Fade Buttons
-fade_buttons = Collection(app).place(438, 119)
+fade_buttons = Collection(app).place(354, 89)
 fi = UImage("GUI/fade_in_22x24.png").getSprites(22)
 fo = UImage("GUI/fade_out_22x24.png").getSprites(22)
 fu = UImage("GUI/fade_under_22x24.png").getSprites(22)
 fade_in = Button(fade_buttons, (fi[0],fi[0],fi[1]), lambda:track.fadeVolume(1.0, 1.25)).place(0, 0)
-fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 7.0)).place(22, 0)
-fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.2, 1.25)).place(44, 0)
+fade_out = Button(fade_buttons, (fo[0],fo[0],fo[1]), lambda:track.fadeVolume(0.0, 7.0)).place(18, 0)
+fade_under = Button(fade_buttons, (fu[0],fu[0],fu[1]), lambda:track.fadeVolume(.2, 1.25)).place(36, 0)
 
 # Multimedia Buttons
-track_buttons = Collection(app).place(28, 188)
+track_buttons = Collection(app).place(21, 145)
 prev_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/prev_44x36.png", 44)).place(0, 0)
 play_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/play_44x36.png", 44), track.play).place(44, 0)
 pause_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/pause_44x36.png", 44), track.pause).place(88,0)
 stop_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/stop_44x36.png", 44), track.stop).place(132, 0)
 next_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/next_44x36.png", 44)).place(176, 0)
-eject_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/eject_44x36.png", 44),gui_manager.loadTrack).place(232, 0)
+eject_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/eject_44x36.png", 44),gui_manager.loadTrack).place(230, 0)
 
 # Loop Button
 loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
 loop_images.extend([None, None, loop_images[2], loop_images[0]])
 loop_images[1] = loop_images[0]
-loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(420, 194)
+loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(305, 146)
 
 #guiABLE Popup Window
 gui_manager.loadSettings()
@@ -386,6 +349,25 @@ ga_closed = time()      # Prevents instantly reopening ga_win if ga_instant is c
 # guiABLE Button
 ga_img = UImage("GUI/gA_30x26.png").getSprites(30)
 ga_img.append(ga_img[1])
-ga_instant = InstantButton(app, ga_img, gui_manager.showGAWin).place(486, 194)
+ga_instant = InstantButton(app, ga_img, gui_manager.showGAWin).place(380, 148)
+
+""" Define the Playlists Window """
+playlist_geom = list(app.windowGeometry())
+playlist_win = ChildWindow(app, (0, playlist_geom[3]), width=playlist_geom[2], height=playlist_geom[3])
+playlist_bg = Background(playlist_win, "GUI/playlist_bg_432x192.png").place(0, 0)
+playlist_win.visible(False)
+
+playlist_win.bind("<FocusIn>", gui_manager.playlistGetFocus)
+playlist_win.bind("<FocusOut>", gui_manager.playlistLoseFocus)
+
+playlist_top_bar = Image(playlist_bg, Skin.fromSpriteSheet("GUI/playlist_top_bar_396x28.png", 399)).place(11, 0)
+playlist_exit = Button(playlist_bg, exit_skin, gui_manager.playlistClose).place(414, 6)
+
+playlist_box = Image(playlist_bg, "GUI/playlist_box_376x133.png").place(17, 31)
+collection_tray = Label(playlist_box, None, "← Collection Tray →", ui_font, color="#a3a0bd").place(121, 108)
+scroll_trough = Image(playlist_bg, "GUI/scroll_trough_20x109.png").place(398, 31)
+
+playlist_duration_bg = Image(playlist_bg, "GUI/playlist_duration_189x23.png").place(229, 164)
+playlist_duration = Label(playlist_duration_bg, None, "00:00 / 00:00", ui_font, anchor="ne", width=147).place(2, 2)
 
 app.mainloop()
