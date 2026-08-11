@@ -299,8 +299,8 @@ track_bg = Image(app, "GUI/title_bar_250x27.png").place(169, 34)
 track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=242).place(4, 0)
 
 # Mid
-kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 3)).place(169, 66)
-khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 3)).place(259, 66)
+kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 2)).place(169, 66)
+khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 2)).place(259, 66)
 volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
                                    lambda:track.setVolume(volume_slider.getPercent())).place(169, 93)
 channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_48x20.png", 48)).place(368, 67)
@@ -330,7 +330,7 @@ eject_but = Button(track_buttons, Skin.fromSpriteSheet("GUI/eject_44x36.png", 44
 loop_images = UImage("GUI/loop_44x24.png").getSprites(44)
 loop_images.extend([None, None, loop_images[2], loop_images[0]])
 loop_images[1] = loop_images[0]
-loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(305, 144)
+loop_but = Checkbox(app, loop_images, lambda:track.setLoop(loop_but.isTrue())).place(305, 149)
 
 #guiABLE Popup Window
 gui_manager.loadSettings()
