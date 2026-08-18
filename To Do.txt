@@ -1,4 +1,6 @@
 ===== TO DO =====
+> Marquee should be passed a bg_color-only widget from Skin.fromColors, created to a specified width and height. Then
+  the marquee is positioned inside or above the track_box image, providing padding around the images interior edges.
 > BUG: Top bar is not in active state at application start.
 
 > Enable playlist creation and management. (introduces Trees)

@@ -22,6 +22,7 @@ class Marquee(LinearAnimator, Image):
             self.after_cancel(self._marquee_after)
             self._marquee_after = None
 
+        if self._text_pos is None: self._text_pos = (0, 0)
         self._text_anchor = "w"
         self._last_offset_x = 0
         self._positionLabel()
@@ -152,8 +153,7 @@ class GuiManager():
         elif track.status() == "Unloaded": display_state.changeImage(0)
 
     def setStatics(self):
-        """Set static UI elements."""
-        track_lbl.setText(track.info)
+        track_lbl.setText("  " + track.info + "  ")
 
         kbps = str(round(track.kbps))
         khz = str(round(track.khz * .001))
@@ -212,7 +212,6 @@ class GuiManager():
 
     @staticmethod
     def setDuration(min_sec_str:str):
-        """Set duration display text."""
         mins, secs = min_sec_str.strip().split(":")
         m_index = len(mins) - 1
         duration_min1000.changeImage(int(mins[m_index-3])) if m_index > 2 else duration_min1000.changeImage(10)
@@ -297,12 +296,12 @@ duration_sec10 = Image(display_duration, small_digit_skin).place(50, 0)
 duration_sec1 = Image(display_duration, small_digit_skin).place(61, 0)
 
 # Track Listing
-track_lbl = Marquee(app, "GUI/title_bar_250x27.png", "No track loaded.",
-                    font_pack=ui_font, text_pos=(5,0), width=242).place(169, 34)
+track_box = Image(app, "GUI/track_bar_242x27.png").place(169, 34)
+track_lbl = Marquee(track_box, Skin.fromColors(238, 24, "black"), "No track loaded.", font_pack=ui_font, ).place(2, 1)
 
 # Mid
-kbps_box = Image(app, "GUI/kbps_81x23.png", font_pack=ui_font, anchor="w", text_pos=(6,0)).place(169, 66)
-khz_box = Image(app, "GUI/khz_66x23.png", font_pack=ui_font, anchor="w", text_pos=(7,0)).place(259, 66)
+kbps_box = Image(app, "GUI/kbps_81x23.png", font_pack=ui_font, font_size=11, anchor="e", text_pos=(-44,0)).place(169, 66)
+khz_box = Image(app, "GUI/khz_66x23.png", font_pack=ui_font, font_size=11, anchor="e", text_pos=(-36,0)).place(259, 66)
 volume_slider = DynamicSlider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
                 lambda: track.setVolume(volume_slider.getPercent()),slide_duration=120).place(169, 93)
 channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_48x20.png", 48)).place(368, 67)
@@ -356,7 +355,7 @@ ga_instant = InstantButton(app, ga_img, gui_manager.showGAWin).place(380, 148)
 playlist_geom = list(app.windowGeometry())
 playlist_win = ChildWindow(app, (0, playlist_geom[3]), width=playlist_geom[2], height=playlist_geom[3])
 playlist_bg = Background(playlist_win, "GUI/playlist_bg_432x192.png").place(0, 0)
-playlist_win.visible(True)
+playlist_win.visible(False)
 
 playlist_win.bind("<FocusIn>", gui_manager.playlistGetFocus)
 playlist_win.bind("<FocusOut>", gui_manager.playlistLoseFocus)
