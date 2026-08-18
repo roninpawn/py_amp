@@ -1,7 +1,5 @@
 ===== TO DO =====
-> BUG: Cannot drag the progress handle at startup, even if a track is loaded.
 > BUG: Top bar is not in active state at application start.
-> Clicking the volume / progress trough should immediately draw the handle to the clicked position.
 
 > Enable playlist creation and management. (introduces Trees)
     X Persistent Config Data via ConfigParser
@@ -57,6 +55,9 @@
 > Confirm and report stuttering playback bug to library maintainers.
 
 ===== DONE =====
+X BUG: Cannot drag the progress handle at startup, even if a track is loaded.
+X Clicking the volume / progress trough should immediately draw the handle to the clicked position.
+
 X Optimize the Marquee -- TRIED: It was slower than direct redraw of the text layer.
     X Currently it redraws the text each frame. With an opaque background, it could just slide the text back and forth
       within a parent layer.

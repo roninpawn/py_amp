@@ -3,75 +3,68 @@ from time import time
 import configparser
 
 from guiABLE import *
+
 from active_track import ActiveTrack
 
 
-""" Extend guiABLE's Label() to create a self-animating Marquee, for when track metadata exceeds the given area. """
-class Marquee(Label):
-    def animate(self, pixel_delta:int = 16, fps:int = 32, delay_ms:int = 3000):
-        self._benchmark_duration = 0
-        self._benchmark_count = 0
+""" An Image whose Labelable child scrolls horizontally when its text exceeds the available area. """
+class Marquee(LinearAnimator, Image):
+    def __init__(self, parent, skin=None, text="", **kwargs):
+        super().__init__(parent, skin=skin, text=text, **kwargs)
 
-        # End any animation that is already in progress.
-        try:
-            self.after_cancel(self._animate[7])
-        except: pass
-
-        # Reset text to origin  position.
-        if self._img_text: self.delete(self._img_text)
-        if self._img_text_shadow: self.delete(self._img_text_shadow)
-        self._img_text, self._img_text_shadow = None, None
-        self.redraw()
-
-        # Measure whether animation is needed.
-        text_bbox = self.bbox(self._img_text)
-        req_width = text_bbox[0] + text_bbox[2]
         self._last_offset_x = 0
+        self._marquee_after = None
 
-        # Only animate if the text extends beyond the given area.
-        if self.width < req_width:
-            origin = 0
-            destination = self.width - req_width
-            duration = abs(origin - destination) / pixel_delta
-            animation_id = self.after_idle(self._animationStep)
-            framerate = round(1000 / fps)
+    def animate(self, pixel_delta:int=16, fps:int=32, delay_ms:int=3000):
+        self.stopAnimation()
 
-            # Initiate on a forced inverse-completion, triggering a delay and origin/destination flip.
-            self._animate = [time() - duration, destination, 1.0, origin, duration, framerate, delay_ms, animation_id]
+        if self._marquee_after is not None:
+            self.after_cancel(self._marquee_after)
+            self._marquee_after = None
 
-    def _animationStep(self):
-        self._animate[2] = min(1.0, (time() - self._animate[0]) / self._animate[4])
+        self._text_anchor = "w"
+        self._last_offset_x = 0
+        self._positionLabel()
 
-        if self._animate[2] < 1.0:
-            # Interpolate new offset.
-            offset_x = round(self._animate[1] + (self._animate[3] - self._animate[1]) * self._animate[2])
+        req_width = self._label.width
+        if self.width >= req_width: return
 
-            # Only redraw text if the pixel position has changed.
-            if offset_x != self._last_offset_x:
-                start = time()      # .00013
-                # Remove old text.
-                if self._img_text: self.delete(self._img_text)
-                if self._img_text_shadow: self.delete(self._img_text_shadow)
-                self._img_text, self._img_text_shadow = None, None
-                # Create text in new position.
-                self.drawText(offset_x)
-                self._last_offset_x = offset_x
+        self._marquee = [
+            self._text_pos[0],
+            self.width - req_width,
+            pixel_delta,
+            round(1000 / fps),
+            delay_ms
+        ]
 
-                self._benchmark_duration += time() - start
-                self._benchmark_count += 1
-                if self._benchmark_count >= 100:
-                    print(self._benchmark_duration / 100, "Marquee() draw time.")
-                    self._benchmark_count = 0
-                    self._benchmark_duration = 0
+        self._marquee_after = self.after(delay_ms, self._animateMarquee)
 
-            self._animate[7] = self.after(self._animate[5], self._animationStep)    # Schedule next step.
-        else:
-            # Flip origin with destination and set a new start time.
-            new_origin = self._animate[3]
-            self._animate[3] = self._animate[1]
-            self._animate[1] = new_origin
-            self._animate[0] = time() + (self._animate[6] / 1000)
-            self._animate[7] = self.after(self._animate[6], self._animationStep)
+    def _animateMarquee(self):
+        origin, destination, pixel_delta, framerate, delay_ms = self._marquee
+        duration = round(abs(origin - destination) / pixel_delta * 1000)
+
+        self._marquee[0], self._marquee[1] = destination, origin
+
+        LinearAnimator.animate(
+            self,
+            origin,
+            destination,
+            duration,
+            self._drawMarquee,
+            framerate,
+            self._pauseMarquee
+        )
+
+    def _drawMarquee(self, offset_x:float):
+        offset_x = round(offset_x)
+        if offset_x == self._last_offset_x: return
+
+        self._text_pos = (offset_x, self._text_pos[1])
+        self._positionLabel()
+        self._last_offset_x = offset_x
+
+    def _pauseMarquee(self):
+        self._marquee_after = self.after(self._marquee[4], self._animateMarquee)
 
 
 """ Consolidate GUI functions - some of which provide an interface to ActiveTrack() - into a passable class object. """
@@ -97,8 +90,9 @@ class GuiManager():
             self.config.add_section('General')
         if "Recent" in self.config.sections() and "0" in self.config["Recent"]:
             success = track.load(self.config.get("Recent", "0", fallback=""), False, False)
-            if not success:
-                self.config.remove_option("Recent", "0")
+            if success:
+                progress_bar.enable()
+            else: self.config.remove_option("Recent", "0")
 
     def writeSettings(self):
         self.config.set('General', 'volume', str(track.volume))
@@ -158,6 +152,7 @@ class GuiManager():
         elif track.status() == "Unloaded": display_state.changeImage(0)
 
     def setStatics(self):
+        """Set static UI elements."""
         track_lbl.setText(track.info)
 
         kbps = str(round(track.kbps))
@@ -190,12 +185,17 @@ class GuiManager():
             if not track.isPaused():
                 if track.isPlaying():
                     if not progress_bar.enabled: progress_bar.enable()
-                    if not progress_bar.isHeld(): progress_bar.setPercent(track.getPercent())
-                    progress_bar.after(500, self.unlockProgress)
+
+                    progress_ms = 500
+                    if not progress_bar.isHeld():
+                        target = min(1.0, track.getPercent() + (progress_ms / 1000) / track.duration)
+                        progress_bar.slideTo(target, progress_ms)
+
+                    progress_bar.after(progress_ms, self.unlockProgress)
                     self._progress_locked = True
                 elif not dragging:
                     if track.status() != "Stopped": track.stop()
-                    progress_bar.setPercent(0.0)
+                    progress_bar.slideTo(0.0, 0)
 
     @staticmethod
     def getTime(secs:float) -> str: return f"{int(secs // 60):02d}:{round(secs % 60):02d}"
@@ -212,6 +212,7 @@ class GuiManager():
 
     @staticmethod
     def setDuration(min_sec_str:str):
+        """Set duration display text."""
         mins, secs = min_sec_str.strip().split(":")
         m_index = len(mins) - 1
         duration_min1000.changeImage(int(mins[m_index-3])) if m_index > 2 else duration_min1000.changeImage(10)
@@ -224,6 +225,7 @@ class GuiManager():
     def loseFocus(self, event=None):
         drag_handle.changeImage(0)
         python_logo.changeImage(0)
+
     def getFocus(self, event=None):
         if not self._playlist_focus:
             drag_handle.changeImage(1)
@@ -248,7 +250,7 @@ class GuiManager():
         playlist_top_bar.changeImage(0)
 
 
-""" Define the main PY_AMP GUI in less than 100 lines of code. ;) """
+""" Define the main PY_AMP GUI in around 100 lines of code. ;) """
 # Spawn Window
 gui_manager = GuiManager()
 app = Window(*gui_manager.storedAppPosition(), width=432, height=192, title="Py_Amp")
@@ -295,16 +297,16 @@ duration_sec10 = Image(display_duration, small_digit_skin).place(50, 0)
 duration_sec1 = Image(display_duration, small_digit_skin).place(61, 0)
 
 # Track Listing
-track_bg = Image(app, "GUI/title_bar_250x27.png").place(169, 34)
-track_lbl = Marquee(track_bg, None, "No track loaded.", ui_font, text_pos=(6,3), width=242).place(4, 0)
+track_lbl = Marquee(app, "GUI/title_bar_250x27.png", "No track loaded.",
+                    font_pack=ui_font, text_pos=(5,0), width=242).place(169, 34)
 
 # Mid
-kbps_box = Label(app, "GUI/kbps_81x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(46, 2)).place(169, 66)
-khz_box = Label(app, "GUI/khz_66x23.png", "-- ", ui_font, font_size=11, anchor="ne", text_pos=(38, 2)).place(259, 66)
-volume_slider = Slider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
-                                   lambda:track.setVolume(volume_slider.getPercent())).place(169, 93)
+kbps_box = Image(app, "GUI/kbps_81x23.png", font_pack=ui_font, anchor="w", text_pos=(6,0)).place(169, 66)
+khz_box = Image(app, "GUI/khz_66x23.png", font_pack=ui_font, anchor="w", text_pos=(7,0)).place(259, 66)
+volume_slider = DynamicSlider(app, "GUI/volume_trough_129x22.png", "GUI/volume_handle_24x22.png",
+                lambda: track.setVolume(volume_slider.getPercent()),slide_duration=120).place(169, 93)
 channels = Image(app, Skin.fromSpriteSheet("GUI/stereo_48x20.png", 48)).place(368, 67)
-progress_bar = Slider(app, "GUI/progress_trough_399x20.png", "GUI/progress_handle_58x20.png",
+progress_bar = AnimatedSlider(app, "GUI/progress_trough_399x20.png", "GUI/progress_handle_58x20.png",
                       gui_manager.updateProgress, lambda:track.setProgress(progress_bar.getPercent())).place(21, 116)
 progress_bar.disable()      # Until a track has been loaded.
 
@@ -354,7 +356,7 @@ ga_instant = InstantButton(app, ga_img, gui_manager.showGAWin).place(380, 148)
 playlist_geom = list(app.windowGeometry())
 playlist_win = ChildWindow(app, (0, playlist_geom[3]), width=playlist_geom[2], height=playlist_geom[3])
 playlist_bg = Background(playlist_win, "GUI/playlist_bg_432x192.png").place(0, 0)
-playlist_win.visible(False)
+playlist_win.visible(True)
 
 playlist_win.bind("<FocusIn>", gui_manager.playlistGetFocus)
 playlist_win.bind("<FocusOut>", gui_manager.playlistLoseFocus)
@@ -363,10 +365,10 @@ playlist_top_bar = Image(playlist_bg, Skin.fromSpriteSheet("GUI/playlist_top_bar
 playlist_exit = Button(playlist_bg, exit_skin, gui_manager.playlistClose).place(414, 6)
 
 playlist_box = Image(playlist_bg, "GUI/playlist_box_376x133.png").place(17, 31)
-collection_tray = Label(playlist_box, None, "← Collection Tray →", ui_font, color="#a3a0bd").place(121, 108)
+collection_tray = Label(playlist_box, "← Collection Tray →", ui_font, color="#a3a0bd").place(121, 108)
 scroll_trough = Image(playlist_bg, "GUI/scroll_trough_20x109.png").place(398, 31)
 
-playlist_duration_bg = Image(playlist_bg, "GUI/playlist_duration_189x23.png").place(229, 164)
-playlist_duration = Label(playlist_duration_bg, None, "00:00 / 00:00", ui_font, anchor="ne", width=147).place(2, 2)
+playlist_duration = Image(playlist_bg, "GUI/playlist_duration_189x23.png",
+                            text="00:00 / 00:00", text_pos=(-3,0), font_pack=ui_font, anchor="e").place(203, 164)
 
 app.mainloop()
