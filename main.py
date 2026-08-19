@@ -25,7 +25,7 @@ class Marquee(LinearAnimator, Image):
         if self._text_pos is None: self._text_pos = (0, 0)
         self._text_anchor = "w"
         self._last_offset_x = 0
-        self._positionLabel()
+        self._anchorLabel()
 
         req_width = self._label.width
         if self.width >= req_width: return
@@ -61,7 +61,7 @@ class Marquee(LinearAnimator, Image):
         if offset_x == self._last_offset_x: return
 
         self._text_pos = (offset_x, self._text_pos[1])
-        self._positionLabel()
+        self._anchorLabel()
         self._last_offset_x = offset_x
 
     def _pauseMarquee(self):
